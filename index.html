@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>MineTex Painter</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+body { font-family: sans-serif; margin: 0; background-color: #f0f0f0; color: #333; transition: background-color 0.3s, color 0.3s; }
+body.dark { background-color: #333; color: #f0f0f0; }
+#root { display: flex; flex-direction: column; height: 100vh; }
+.main-container { display: flex; flex: 1; overflow: hidden; }
+.left-panel, .right-panel { padding: 1rem; background-color: #fff; }
+body.dark .left-panel, body.dark .right-panel { background-color: #444; }
+.center-panel { flex: 1; display: flex; justify-content: center; align-items: center; background-color: #e0e0e0; }
+body.dark .center-panel { background-color: #222; }
+.toolbar { display: flex; flex-direction: column; gap: 0.5rem; }
+.toolbar button, .bottom-bar button, .face-selector button, .export-options button, .dark-mode-toggle, #file-input-label {
+padding: 0.5rem; border: 1px solid #ccc; background-color: #f9f9f9; cursor: pointer; text-align: center;
+}
+body.dark .toolbar button, body.dark .bottom-bar button, body.dark .face-selector button, body.dark .export-options button, body.dark .dark-mode-toggle, body.dark #file-input-label {
+background-color: #555; border-color: #666; color: #f0f0f0;
+}
+.toolbar button.active { background-color: #ddd; }
+body.dark .toolbar button.active { background-color: #666; }
+.pixel-editor { display: grid; grid-template-columns: repeat(16, 1fr); width: 256px; height: 256px; border: 1px solid #000; image-rendering: pixelated; }
+.pixel { background-color: #fff; }
+.color-picker-container { margin-top: 1rem; }
+.bottom-bar { padding: 1rem; background-color: #fff; text-align: center; }
+body.dark .bottom-bar { background-color: #444; }
+.face-selector { margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.export-options { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<!-- React and Babel -->
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<!-- three.js and react-three-fiber -->
+<script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+<script src="https://unpkg.com/@react-three/fiber@8.9.2/dist/react-three-fiber.umd.js"></script>
+<script src="https://unpkg.com/@react-three/drei@9.56.2/core/index.js"></script>
+<!-- JSZip for exporting -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.0/FileSaver.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+const { Canvas, useFrame } = ReactThreeFiber;
+const { OrbitControls, useTexture } = ReactThreeDrei;
+
+const App = () => {
+const [textures, setTextures] = useState({});
+const [activeFace, setActiveFace] = useState('front');
+const [tool, setTool] = useState('pencil');
+const [color, setColor] = useState('#ff0000');
+const [isDarkMode, setIsDarkMode] = useState(false);
+
+useEffect(() => {
+document.body.classList.toggle('dark', isDarkMode);
+}, [isDarkMode]);
+
+return (
+<>
+<div className="main-container">
+<div className="left-panel">
+<h2>Tools</h2>
+<div className="toolbar">
+<button onClick={() => setTool('pencil')} className={tool === 'pencil' ? 'active' : ''}>Pencil</button>
+<button onClick={() => setTool('fill')} className={tool === 'fill' ? 'active' : ''}>Fill</button>
+<button onClick={() => setTool('eraser')} className={tool === 'eraser' ? 'active' : ''}>Eraser</button>
+<button onClick={() => setTool('eyedropper')} className={tool === 'eyedropper' ? 'active' : ''}>Eyedropper</button>
+</div>
+<div className="color-picker-container">
+<input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+</div>
+<div className="face-selector">
+{['front', 'back', 'top', 'bottom', 'left', 'right'].map(face => (
+<button key={face} onClick={() => setActiveFace(face)}>{face.charAt(0).toUpperCase() + face.slice(1)}</button>
+))}
+</div>
+</div>
+<div className="center-panel">
+<Canvas>
+<ambientLight />
+<pointLight position={[[1](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFQ7wnWM3G9PP4vcotPvAVc6y-BeXQYEE4cQane5qnYT1eGBMZB8byjwFQ5vyLoj0Wh43HkIhFqcCm0VwVFZQROx7MqffO2vzG9uFxTOjHSIeb_cKM1YldqQ2uzWUrLPe_KtakwU1DOXaPa27XaIfyufRFRFcJZFxjZ5J1GKJ62gL006x5fG9FvNNhRXjCdZA%3D%3D)][[1](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFQ7wnWM3G9PP4vcotPvAVc6y-BeXQYEE4cQane5qnYT1eGBMZB8byjwFQ5vyLoj0Wh43HkIhFqcCm0VwVFZQROx7MqffO2vzG9uFxTOjHSIeb_cKM1YldqQ2uzWUrLPe_KtakwU1DOXaPa27XaIfyufRFRFcJZFxjZ5J1GKJ62gL006x5fG9FvNNhRXjCdZA%3D%3D)][[1](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFQ7wnWM3G9PP4vcotPvAVc6y-BeXQYEE4cQane5qnYT1eGBMZB8byjwFQ5vyLoj0Wh43HkIhFqcCm0VwVFZQROx7MqffO2vzG9uFxTOjHSIeb_cKM1YldqQ2uzWUrLPe_KtakwU1DOXaPa27XaIfyufRFRFcJZFxjZ5J1GKJ62gL006x5fG9FvNNhRXjCdZA%3D%3D)]} />
+<Cube textures={textures} setActiveFace={setActiveFace} />
+<OrbitControls />
+</Canvas>
+</div>
+<div className="right-panel">
+<h2>{activeFace.charAt(0).toUpperCase() + activeFace.slice(1)} Face Editor (16x16)</h2>
+<PixelEditor
+textures={textures}
+setTextures={setTextures}
+activeFace={activeFace}
+tool={tool}
+color={color}
+setColor={setColor}
+/>
+</div>
+</div>
+<div className="bottom-bar">
+<Export textures={textures} />
+<button className="dark-mode-toggle" onClick={() => setIsDarkMode(!isDarkMode)}>
+{isDarkMode ? 'Light Mode' : 'Dark Mode'}
+</button>
+</div>
+</>
+);
+};
+
+const Cube = ({ textures, setActiveFace }) => {
+const mesh = useRef();
+const materials = Object.values(textures).length === 6 ? Object.values(textures).map(t => new THREE.MeshStandardMaterial({ map: t, transparent: true })) : new THREE.MeshStandardMaterial({ color: 'orange' });
+
+useFrame(() => {
+mesh.current.rotation.y += 0.005;
+mesh.current.rotation.x += 0.005;
+});
+
+const handleFaceClick = (e) => {
+const faceIndex = Math.floor(e.faceIndex / 2);
+const faces = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+setActiveFace(faces[faceIndex]);
+}
+
+return (
+<mesh ref={mesh} onClick={handleFaceClick} material={materials}>
+<boxGeometry args={[[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)][[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)][[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)]} />
+</mesh>
+);
+};
+
+const PixelEditor = ({ textures, setTextures, activeFace, tool, color, setColor }) => {
+const canvasRef = useRef(null);
+const [isDrawing, setIsDrawing] = useState(false);
+
+const getInitialCanvasData = () => {
+const canvas = document.createElement('canvas');
+canvas.width = 16;
+canvas.height = 16;
+const ctx = canvas.getContext('2d');
+ctx.fillStyle = 'rgba(255, 255, 255, 0)';
+ctx.fillRect(0, 0, 16, 16);
+return canvas;
+};
+
+useEffect(() => {
+if (!textures[activeFace]) {
+const newCanvas = getInitialCanvasData();
+const newTexture = new THREE.CanvasTexture(newCanvas);
+newTexture.magFilter = THREE.NearestFilter;
+newTexture.minFilter = THREE.NearestFilter;
+setTextures(prev => ({ ...prev, [activeFace]: newTexture, [`${activeFace}Canvas`]: newCanvas }));
+}
+}, [activeFace, textures, setTextures]);
+
+useEffect(() => {
+const canvas = canvasRef.current;
+if (canvas && textures[`${activeFace}Canvas`]) {
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+ctx.drawImage(textures[`${activeFace}Canvas`], 0, 0, canvas.width, canvas.height);
+}
+}, [activeFace, textures]);
+
+const draw = (e) => {
+const canvas = canvasRef.current;
+const rect = canvas.getBoundingClientRect();
+const x = Math.floor((e.clientX - rect.left) / (rect.width / 16));
+const y = Math.floor((e.clientY - rect.top) / (rect.height / 16));
+
+const faceCanvas = textures[`${activeFace}Canvas`];
+const ctx = faceCanvas.getContext('2d');
+
+if (tool === 'pencil' || tool === 'eraser') {
+ctx.fillStyle = tool === 'eraser' ? 'rgba(0,0,0,0)' : color;
+ctx.clearRect(x, y, 1, 1);
+ctx.fillRect(x, y, 1, 1);
+}
+
+const editorCtx = canvas.getContext('2d');
+editorCtx.imageSmoothingEnabled = false;
+editorCtx.clearRect(0,0, canvas.width, canvas.height);
+editorCtx.drawImage(faceCanvas, 0,0, canvas.width, canvas.height);
+
+textures[activeFace].needsUpdate = true;
+};
+
+const handleMouseDown = (e) => {
+setIsDrawing(true);
+const canvas = canvasRef.current;
+const rect = canvas.getBoundingClientRect();
+const x = Math.floor((e.clientX - rect.left) / (rect.width / 16));
+const y = Math.floor((e.clientY - rect.top) / (rect.height / 16));
+const faceCanvas = textures[`${activeFace}Canvas`];
+const ctx = faceCanvas.getContext('2d');
+
+if (tool === 'fill') {
+floodFill(ctx, x, y, hexToRgba(color));
+} else if (tool === 'eyedropper') {
+const p = ctx.getImageData(x, y, 1, 1).data;
+setColor(rgbaToHex(p, p[[3](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFuJgsPai9d5ocmqQYBu3oFcbjckc-xKpT1V2sdQla2RhHiqrQkWwDdxfT3Fnecs1u7WQ5YcKwgCvLP5yfg0-vIrwo8Idba4xChPvuTn_aBW8whlS-MTkKynSXNhwVXSma8)], p[[4](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQGTl4DarhmmY1ZEDtmjJcN44wzxOVqFH0FjQGAc0OLzT_ANnBKATEnumjpFwvnvAn-KRcWfp4sG9s5EWoox064ovY_Jw4VW5TNZqVQEjDsUFkCA8wNvCVRQUYdOUN7gXvOhpAjFS5-hYzx9f3qodCnpKXvhVHTGbLI-IW2NCfic37RAVp8cPjaTfrA%3D)], p[[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)]));
+} else {
+draw(e);
+}
+
+const editorCtx = canvas.getContext('2d');
+editorCtx.imageSmoothingEnabled = false;
+editorCtx.clearRect(0,0, canvas.width, canvas.height);
+editorCtx.drawImage(faceCanvas, 0,0, canvas.width, canvas.height);
+textures[activeFace].needsUpdate = true;
+};
+
+const handleMouseMove = (e) => {
+if (isDrawing && (tool === 'pencil' || tool === 'eraser')) {
+draw(e);
+}
+};
+
+const handleMouseUp = () => {
+setIsDrawing(false);
+};
+
+const handleImport = (e) => {
+const file = e.target.files;
+if (file) {
+const reader = new FileReader();
+reader.onload = (event) => {
+const img = new Image();
+img.onload = () => {
+const faceCanvas = textures[`${activeFace}Canvas`];
+const ctx = faceCanvas.getContext('2d');
+ctx.clearRect(0, 0, 16, 16);
+ctx.drawImage(img, 0, 0, 16, 16);
+textures[activeFace].needsUpdate = true;
+
+const editorCanvas = canvasRef.current;
+const editorCtx = editorCanvas.getContext('2d');
+editorCtx.imageSmoothingEnabled = false;
+editorCtx.clearRect(0, 0, editorCanvas.width, editorCanvas.height);
+editorCtx.drawImage(faceCanvas, 0, 0, editorCanvas.width, editorCanvas.height);
+};
+img.src = event.target.result;
+};
+reader.readAsDataURL(file);
+}
+};
+
+const floodFill = (ctx, x, y, fillColor) => {
+const imageData = ctx.getImageData(0, 0, 16, 16);
+const { width, height, data } = imageData;
+const targetColor = getColorAtPixel(data, width, x, y);
+
+if (colorsMatch(targetColor, fillColor)) return;
+
+const stack = [[x, y]];
+while (stack.length) {
+const [cx, cy] = stack.pop();
+if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
+
+const currentColor = getColorAtPixel(data, width, cx, cy);
+if (colorsMatch(currentColor, targetColor)) {
+setColorAtPixel(data, width, cx, cy, fillColor);
+stack.push([cx + 1, cy]);
+stack.push([cx - 1, cy]);
+stack.push([cx, cy + 1]);
+stack.push([cx, cy - 1]);
+}
+}
+ctx.putImageData(imageData, 0, 0);
+};
+
+const getColorAtPixel = (data, width, x, y) => {
+const index = (y * width + x) * 4;
+return [data[index], data[index + 1], data[index + 2], data[index + 3]];
+};
+
+const setColorAtPixel = (data, width, x, y, color) => {
+const index = (y * width + x) * 4;
+data[index] = color;
+data[index + 1] = color[[3](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFuJgsPai9d5ocmqQYBu3oFcbjckc-xKpT1V2sdQla2RhHiqrQkWwDdxfT3Fnecs1u7WQ5YcKwgCvLP5yfg0-vIrwo8Idba4xChPvuTn_aBW8whlS-MTkKynSXNhwVXSma8)];
+data[index + 2] = color[[4](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQGTl4DarhmmY1ZEDtmjJcN44wzxOVqFH0FjQGAc0OLzT_ANnBKATEnumjpFwvnvAn-KRcWfp4sG9s5EWoox064ovY_Jw4VW5TNZqVQEjDsUFkCA8wNvCVRQUYdOUN7gXvOhpAjFS5-hYzx9f3qodCnpKXvhVHTGbLI-IW2NCfic37RAVp8cPjaTfrA%3D)];
+data[index + 3] = color[[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)];
+};
+
+const colorsMatch = (a, b) => a === b && a[[3](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFuJgsPai9d5ocmqQYBu3oFcbjckc-xKpT1V2sdQla2RhHiqrQkWwDdxfT3Fnecs1u7WQ5YcKwgCvLP5yfg0-vIrwo8Idba4xChPvuTn_aBW8whlS-MTkKynSXNhwVXSma8)] === b[[3](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFuJgsPai9d5ocmqQYBu3oFcbjckc-xKpT1V2sdQla2RhHiqrQkWwDdxfT3Fnecs1u7WQ5YcKwgCvLP5yfg0-vIrwo8Idba4xChPvuTn_aBW8whlS-MTkKynSXNhwVXSma8)] && a[[4](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQGTl4DarhmmY1ZEDtmjJcN44wzxOVqFH0FjQGAc0OLzT_ANnBKATEnumjpFwvnvAn-KRcWfp4sG9s5EWoox064ovY_Jw4VW5TNZqVQEjDsUFkCA8wNvCVRQUYdOUN7gXvOhpAjFS5-hYzx9f3qodCnpKXvhVHTGbLI-IW2NCfic37RAVp8cPjaTfrA%3D)] === b[[4](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQGTl4DarhmmY1ZEDtmjJcN44wzxOVqFH0FjQGAc0OLzT_ANnBKATEnumjpFwvnvAn-KRcWfp4sG9s5EWoox064ovY_Jw4VW5TNZqVQEjDsUFkCA8wNvCVRQUYdOUN7gXvOhpAjFS5-hYzx9f3qodCnpKXvhVHTGbLI-IW2NCfic37RAVp8cPjaTfrA%3D)] && a[[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)] === b[[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)];
+
+const hexToRgba = (hex) => {
+const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+return result ? [
+parseInt(result[[3](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQFuJgsPai9d5ocmqQYBu3oFcbjckc-xKpT1V2sdQla2RhHiqrQkWwDdxfT3Fnecs1u7WQ5YcKwgCvLP5yfg0-vIrwo8Idba4xChPvuTn_aBW8whlS-MTkKynSXNhwVXSma8)], 16),
+parseInt(result[[4](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQGTl4DarhmmY1ZEDtmjJcN44wzxOVqFH0FjQGAc0OLzT_ANnBKATEnumjpFwvnvAn-KRcWfp4sG9s5EWoox064ovY_Jw4VW5TNZqVQEjDsUFkCA8wNvCVRQUYdOUN7gXvOhpAjFS5-hYzx9f3qodCnpKXvhVHTGbLI-IW2NCfic37RAVp8cPjaTfrA%3D)], 16),
+parseInt(result[[2](https://www.google.com/url?sa=E&q=https%3A%2F%2Fvertexaisearch.cloud.google.com%2Fgrounding-api-redirect%2FAUZIYQErXPpJ80M2V652AHJjgw_sDuvcJ1emLmplrAHQ8CThRKCORm9y7KBNopJkv7S0_0qZKXfVybqK66URPOTN-NNQTIPeDJ5oCMn11u2HB2PrTWd-i9T5W01nolRmJlJA-VNvLJZjN3CaOOyl0R6rWQ%3D%3D)], 16),
+255
+] : null;
+}
+
+const rgbaToHex = (r, g, b) => {
+return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+return (
+<div>
+<canvas
+ref={canvasRef}
+width={256}
+height={256}
+style={{ border: '1px solid black', imageRendering: 'pixelated', cursor: 'crosshair' }}
+onMouseDown={handleMouseDown}
+onMouseMove={handleMouseMove}
+onMouseUp={handleMouseUp}
+onMouseLeave={handleMouseUp}
+/>
+<input type="file" id="file-input" accept="image/png" onChange={handleImport} style={{display: 'none'}} />
+<label htmlFor="file-input" id="file-input-label" style={{display: 'block', marginTop: '1rem'}}>Import 16x16 PNG</label>
+</div>
+);
+};
+
+const Export = ({ textures }) => {
+const exportFace = (faceName) => {
+const canvas = textures[`${faceName}Canvas`];
+if (canvas) {
+canvas.toBlob((blob) => {
+saveAs(blob, `block_${faceName}.png`);
+});
+}
+};
+
+const exportAllFaces = () => {
+const zip = new JSZip();
+['front', 'back', 'top', 'bottom', 'left', 'right'].forEach(face => {
+const canvas = textures[`${face}Canvas`];
+if (canvas) {
+canvas.toBlob((blob) => {
+zip.file(`block_${face}.png`, blob);
+if (Object.keys(zip.files).length === 6) {
+zip.generateAsync({ type: "blob" }).then(content => {
+saveAs(content, "minecraft_textures.zip");
+});
+}
+});
+}
+});
+};
+
+return (
+<div className="export-options">
+<button onClick={() => exportFace('front')}>Export Front PNG</button>
+<button onClick={() => exportFace('back')}>Export Back PNG</button>
+<button onClick={() => exportFace('top')}>Export Top PNG</button>
+<button onClick={() => exportFace('bottom')}>Export Bottom PNG</button>
+<button onClick={() => exportFace('left')}>Export Left PNG</button>
+<button onClick={() => exportFace('right')}>Export Right PNG</button>
+<button onClick={exportAllFaces}>Export All as ZIP</button>
+</div>
+);
+};
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>

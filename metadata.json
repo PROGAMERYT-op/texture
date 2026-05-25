@@ -1,6 +1,0 @@
-{
-  "name": "Silo Focus",
-  "description": "An ultra-clean Nordic/Zen minimalist focus timer featuring deep active tracking, a local token economy, and aesthetic custom sensory themes.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
